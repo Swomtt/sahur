@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Edit coins, keys, power-ups and other fields in a Subway Surfers save backup from yell0wsuit.page.">
+<title>Subway Surfers Save Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one 880px column; three steps marked like metro line bullets (load → edit → restore). */
+:root {
+  --bg: #eef1ef; --panel: #ffffff; --ink: #15202b; --muted: #59666f; --line: #d3dbd8;
+  --sign: #f6c000; --sign-ink: #15202b; --rail: #0a737b; --ok: #1d7a43; --bad: #b3261e;
+  --field: #f6f8f7; --changed: #fff4c7;
+  --display: "Bungee", "Arial Black", Impact, sans-serif;
+  --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e151c; --panel: #16212b; --ink: #e6ecef; --muted: #98a6af; --line: #273441;
+  --sign: #ffd12e; --sign-ink: #121a21; --rail: #52c3cc; --ok: #63cf90; --bad: #ff8a80;
+  --field: #111a22; --changed: #3a3313; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0e151c; --panel: #16212b; --ink: #e6ecef; --muted: #98a6af; --line: #273441;
+  --sign: #ffd12e; --sign-ink: #121a21; --rail: #52c3cc; --ok: #63cf90; --bad: #ff8a80;
+  --field: #111a22; --changed: #3a3313; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.5 var(--body); }
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font: 600 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 400 clamp(26px, 5vw, 40px)/1.05 var(--display); margin: 0; text-wrap: balance; }
+h1 span { background: var(--sign); color: var(--sign-ink); padding: 0 .18em; }
+.lede { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 16px; min-width: 0; }
+.step-head { display: flex; align-items: center; gap: 12px; }
+.bullet { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--sign); color: var(--sign-ink); font: 400 17px/1 var(--display); }
+h2 { font: 700 20px/1.2 var(--body); margin: 0; }
+.note { color: var(--muted); font-size: 14px; margin: 0; max-width: 70ch; }
+
+.source { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.source-text { flex: 1 1 260px; min-width: 0; display: grid; gap: 2px; }
+.source-name { font-weight: 600; overflow-wrap: anywhere; }
+.source-meta { font: 400 12.5px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--body); letter-spacing: .06em; text-transform: uppercase;
+  padding: 6px 10px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.ok { color: var(--ok); } .pill.bad { color: var(--bad); }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+button, .btn { font: 600 15px/1 var(--body); border-radius: 10px; padding: 12px 16px; cursor: pointer; border: 1px solid var(--line);
+  background: var(--field); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+button:hover:not(:disabled), .btn:hover { border-color: var(--rail); }
+button.primary { background: var(--sign); color: var(--sign-ink); border-color: var(--sign); }
+button.primary:hover:not(:disabled) { filter: brightness(1.05); border-color: var(--sign-ink); }
+button.link { background: none; border: none; padding: 6px 2px; color: var(--rail); text-decoration: underline; text-underline-offset: 3px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--rail); outline-offset: 2px; }
+.file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.error { color: var(--bad); font-weight: 600; margin: 0; }
+.drop-hint { border: 2px dashed var(--rail); border-radius: 14px; padding: 18px; text-align: center; color: var(--rail); font-weight: 600; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.tile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; background: var(--field); }
+.tile.changed { background: var(--changed); border-color: var(--sign); }
+.tile label { font: 600 12px/1.2 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.tile .tag { color: var(--ink); letter-spacing: .04em; text-transform: none; font-weight: 700; }
+.tile input { width: 100%; font: 700 24px/1.2 var(--body); font-variant-numeric: tabular-nums; color: var(--ink);
+  background: transparent; border: none; border-bottom: 2px solid var(--line); padding: 2px 0; border-radius: 0; }
+.tile input:focus { outline: none; border-bottom-color: var(--rail); }
+.tile .was { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tile .field-error { font-size: 13px; color: var(--bad); font-weight: 600; }
+
+details.all { border-top: 1px solid var(--line); padding-top: 12px; }
+details.all > summary { cursor: pointer; font-weight: 600; color: var(--rail); list-style-position: outside; }
+.all-body { display: grid; gap: 12px; margin-top: 12px; }
+.filter { width: 100%; font: 400 15px/1.3 var(--body); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--field); color: var(--ink); }
+.rows { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(110px, 180px); gap: 10px; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: none; }
+.row.changed { background: var(--changed); }
+.row .path { font: 400 12.5px/1.35 var(--mono); overflow-wrap: anywhere; min-width: 0; }
+.row .type { font: 500 11px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.row input[type=text], .row input[type=number] { width: 100%; font: 400 13px/1.2 var(--mono); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+.row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--rail); justify-self: start; }
+.row .ro { font: 400 12.5px/1.3 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.row input.invalid { border-color: var(--bad); }
+.empty-rows { padding: 16px; color: var(--muted); }
+
+.changes { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.changes li { display: flex; flex-wrap: wrap; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+.changes .k { font-weight: 600; } .changes .arrow { color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.status { min-height: 1.5em; margin: 0; font-weight: 600; }
+.status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
+ol.howto { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; max-width: 70ch; }
+code { font: 400 .88em var(--mono); background: var(--field); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+details.snip { border-top: 1px solid var(--line); padding-top: 12px; }
+details.snip > summary { cursor: pointer; font-weight: 600; color: var(--rail); }
+.snip-body { display: grid; gap: 12px; margin-top: 12px; min-width: 0; }
+pre.code { margin: 0; max-height: 300px; overflow: auto; font: 400 12px/1.5 var(--mono); tab-size: 2; white-space: pre;
+  background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 12px; color: var(--ink); }
+.copy-status { font-weight: 600; font-size: 14px; }
+.copy-status.ok { color: var(--ok); } .copy-status.bad { color: var(--bad); }
+textarea.fallback { width: 100%; min-height: 120px; font: 400 12px/1.4 var(--mono); padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--field); color: var(--ink); }
+@media (max-width: 520px) {
+  .row { grid-template-columns: minmax(0, 1fr) auto; }
+  .row > :last-child { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+
+<div class="wrap" id="app">
+  <header>
+    <div class="eyebrow">yell0wsuit.page · Unity save · Save/cloud</div>
+    <h1>Subway Surfers <span>Save Editor</span></h1>
+    <p class="lede">Open the backup from the export snippet, change your coins, keys or anything else, then restore it. The editor recomputes the save's SHA-1 checksum so the game accepts the changes.</p>
+  </header>
+
+  <section class="step" id="step-load" aria-labelledby="h-load">
+    <div class="step-head"><div class="bullet" aria-hidden="true">1</div><h2 id="h-load">Load a backup</h2></div>
+    <div class="source">
+      <div class="source-text">
+        <div class="source-name" id="src-name">No backup loaded</div>
+        <div class="source-meta" id="src-meta"></div>
+      </div>
+      <span class="pill" id="src-check" hidden></span>
+      <label class="btn" for="file">Open backup file…</label>
+      <input class="file-input" type="file" id="file" accept=".json,application/json">
+    </div>
+    <p class="error" id="load-error" hidden></p>
+    <p class="note" id="src-note">You can also drop the <code>.json</code> file anywhere on this page. Everything stays in your browser.</p>
+    <div class="drop-hint" id="drop-hint" hidden>Drop the backup file to open it</div>
+    <details class="snip">
+      <summary>Need a fresh backup? Get the export snippet</summary>
+      <div class="snip-body">
+        <ol class="howto">
+          <li>Open any page on <code>https://yell0wsuit.page/</code>, press <code>F12</code> and open <b>Console</b>.</li>
+          <li>Copy the snippet, paste it there and press Enter. The first time, Chrome and Firefox ask you to type <code>allow pasting</code> before they accept a paste.</li>
+          <li>A file named <code>subway-surfers-save-YYYY-MM-DD.json</code> downloads. Open it here with <b>Open backup file…</b></li>
+        </ol>
+        <div class="actions"><button id="copy-export">Copy export snippet</button><span class="copy-status" id="copy-export-status" role="status" aria-live="polite"></span></div>
+        <pre class="code" id="code-export" tabindex="0" aria-label="Export snippet"></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-edit" aria-labelledby="h-edit">
+    <div class="step-head"><div class="bullet" aria-hidden="true">2</div><h2 id="h-edit">Edit your progress</h2></div>
+    <p class="note" id="edit-empty">Open a backup in step 1 to see your coins, keys, power-ups and every other field here.</p>
+    <div class="tiles" id="tiles"></div>
+    <p class="note">Values must be whole numbers from 0 to 2,000,000,000. Bigger numbers can wrap around to negative in the game.</p>
+    <details class="all" id="all" hidden>
+      <summary id="all-summary">All save fields</summary>
+      <div class="all-body">
+        <p class="note">Upgrades, characters and boards are safest to buy in the shop with coins. Setting levels or flags past what the game allows can break the save, so keep your original backup.</p>
+        <input class="filter" id="filter" type="search" placeholder="Filter fields, e.g. upgrades or highScore" aria-label="Filter fields">
+        <div class="rows" id="rows" role="list"></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-save" aria-labelledby="h-save">
+    <div class="step-head"><div class="bullet" aria-hidden="true">3</div><h2 id="h-save">Save and restore</h2></div>
+    <div id="changes-wrap">
+      <p class="note" id="no-changes">No changes yet.</p>
+      <ul class="changes" id="changes"></ul>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btn-download" disabled>Download edited backup</button>
+      <button id="btn-snippet" disabled>Copy restore snippet</button>
+      <button class="link" id="btn-reset" disabled>Undo all changes</button>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <textarea class="fallback" id="fallback" hidden readonly aria-label="Restore snippet"></textarea>
+    <ol class="howto">
+      <li>Close every Subway Surfers tab.</li>
+      <li>Open <code>https://yell0wsuit.page/</code> and press <code>F12</code>, then open <b>Console</b>.</li>
+      <li><b>Downloaded file:</b> paste the import snippet below, click the yellow button it adds to the page and pick the edited file. <b>Copied restore snippet:</b> paste it and press Enter.</li>
+      <li>Open any city. Your edited progress loads.</li>
+    </ol>
+    <details class="snip">
+      <summary>Import snippet (restores a downloaded backup file)</summary>
+      <div class="snip-body">
+        <p class="note">Works with any backup from the export snippet, edited or not. It asks you to confirm before it overwrites your save.</p>
+        <div class="actions"><button id="copy-import">Copy import snippet</button><span class="copy-status" id="copy-import-status" role="status" aria-live="polite"></span></div>
+        <pre class="code" id="code-import" tabindex="0" aria-label="Import snippet"></pre>
+      </div>
+    </details>
+    <p class="note">Keep your original backup. Restoring it puts everything back the way it was.</p>
+  </section>
+  <footer class="note">Fan-made tool, not affiliated with SYBO Games, Poki or yell0wsuit. Your save is edited in your browser and never uploaded anywhere.</footer>
+</div>
+
+<script type="application/json" id="sample-backup"></script>
+<script type="text/plain" id="snippet-export">// EXPORT Subway Surfers save (yell0wsuit.page): downloads subway-surfers-save-YYYY-MM-DD.json
+(async () => {
+  const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const enc = v => {
+    if (v instanceof Date) return { $t: 'date', v: v.getTime() };
+    if (v instanceof ArrayBuffer) return { $t: 'ab', v: b64(new Uint8Array(v)) };
+    if (ArrayBuffer.isView(v)) return { $t: 'u8', v: b64(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)) };
+    if (Array.isArray(v)) return v.map(enc);
+    if (v && typeof v === 'object') { const o = {}; for (const k in v) o[k] = enc(v[k]); return { $t: 'obj', v: o }; }
+    return v;
+  };
+  const db = await new Promise((res, rej) => {
+    const r = indexedDB.open('/idbfs');
+    r.onupgradeneeded = () => r.transaction.abort(); // database doesn't exist: don't create an empty one
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(new Error('No save data found on this site. Play the game once in this browser first.'));
+  });
+  if (!db.objectStoreNames.contains('FILE_DATA')) { db.close(); throw new Error('Save store not found. Play the game once in this browser first.'); }
+  const entries = await new Promise((res, rej) => {
+    const out = [], c = db.transaction('FILE_DATA').objectStore('FILE_DATA').openCursor();
+    c.onsuccess = () => { const cur = c.result; if (cur) { out.push({ k: enc(cur.key), v: enc(cur.value) }); cur.continue(); } else res(out); };
+    c.onerror = () => rej(c.error);
+  });
+  db.close();
+  const json = JSON.stringify({ format: 'idbfs-backup', version: 1, origin: location.origin, exportedAt: new Date().toISOString(), entries });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([json], { type: 'application/json' })),
+    download: `subway-surfers-save-${new Date().toISOString().slice(0, 10)}.json`,
+  });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  console.log(`✅ Exported ${entries.length} entries:`, entries.map(e => e.k));
+})().catch(e => console.error('❌', e.message || e));</script>
+<script type="text/plain" id="snippet-import">// IMPORT Subway Surfers save (yell0wsuit.page): adds a yellow button; click it and pick a backup file.
+// Best run on https://yell0wsuit.page/ with all game tabs closed.
+(() => {
+  const unb64 = s => { const b = atob(s), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i); return u8; };
+  const dec = v => {
+    if (Array.isArray(v)) return v.map(dec);
+    if (v && typeof v === 'object') {
+      if (v.$t === 'date') return new Date(v.v);
+      if (v.$t === 'ab') return unb64(v.v).buffer;
+      if (v.$t === 'u8') return unb64(v.v);
+      if (v.$t === 'obj') { const o = {}; for (const k in v.v) o[k] = dec(v.v[k]); return o; }
+    }
+    return v;
+  };
+  const restore = async file => {
+    const data = JSON.parse(await file.text());
+    if (data.format !== 'idbfs-backup' || !Array.isArray(data.entries)) throw new Error('That file is not a backup made by the export script.');
+    const gameHere = !!(window.createUnityInstance || window.UnityLoader || document.querySelector('#unity-canvas'));
+    const msg = `Restore ${data.entries.length} save entries from ${data.exportedAt}?\n` +
+      'This overwrites the matching save data in this browser.' +
+      (gameHere ? '\n\n⚠️ The game is running in this tab and may overwrite the restore. Safer: run this on the homepage with game tabs closed.' : '');
+    if (!confirm(msg)) return false;
+    const db = await new Promise((res, rej) => {
+      const r = indexedDB.open('/idbfs');
+      r.onupgradeneeded = () => { // fresh browser: create the store the way Unity does
+        const st = r.result.createObjectStore('FILE_DATA');
+        st.createIndex('timestamp', 'timestamp', { unique: false });
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    if (!db.objectStoreNames.contains('FILE_DATA')) { db.close(); throw new Error('Save store not found. Open the game once in this browser, close it, then try again.'); }
+    await new Promise((res, rej) => {
+      const tx = db.transaction('FILE_DATA', 'readwrite'), st = tx.objectStore('FILE_DATA');
+      for (const e of data.entries) st.put(dec(e.v), dec(e.k));
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+    db.close();
+    console.log(`✅ Restored ${data.entries.length} entries:`, data.entries.map(e => e.k));
+    alert('Save restored. Now open (or reload) the game.');
+    return true;
+  };
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
+  const btn = Object.assign(document.createElement('button'), { textContent: '📂 Click to choose your save backup (.json)' });
+  Object.assign(btn.style, { position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: '2147483647', padding: '14px 22px', font: 'bold 16px sans-serif', background: '#ffd400', color: '#000', border: '2px solid #000', borderRadius: '10px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,.4)' });
+  btn.onclick = () => input.click();
+  input.onchange = async () => {
+    const f = input.files[0]; if (!f) return;
+    try { if (await restore(f)) btn.remove(); } catch (e) { console.error('❌', e.message || e); alert('Restore failed: ' + (e.message || e)); }
+    input.value = '';
+  };
+  document.body.appendChild(btn);
+  console.log('👆 Click the yellow button on the page to pick your backup file.');
+})();</script>
+<script>
+/* Save format core: BSON parse/serialize, SHA-1, backup read/write. No DOM. */
+var SaveCore = (() => {
+  const te = new TextEncoder(), td = new TextDecoder();
+
+  function b64dec(s) { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+  function b64enc(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+  function hex(u8) { return Array.from(u8, b => b.toString(16).padStart(2, '0')).join(''); }
+
+  function sha1(msg) {
+    const ml = msg.length, padded = ((ml + 9 + 63) >> 6) << 6;
+    const buf = new Uint8Array(padded); buf.set(msg); buf[ml] = 0x80;
+    const dv = new DataView(buf.buffer);
+    dv.setUint32(padded - 4, (ml * 8) >>> 0); dv.setUint32(padded - 8, Math.floor(ml / 0x20000000));
+    let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
+    const w = new Uint32Array(80);
+    for (let off = 0; off < padded; off += 64) {
+      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+      for (let i = 16; i < 80; i++) { const x = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]; w[i] = (x << 1) | (x >>> 31); }
+      let a = h0, b = h1, c = h2, d = h3, e = h4;
+      for (let i = 0; i < 80; i++) {
+        let f, k;
+        if (i < 20) { f = (b & c) | (~b & d); k = 0x5A827999; }
+        else if (i < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1; }
+        else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; }
+        else { f = b ^ c ^ d; k = 0xCA62C1D6; }
+        const t = (((a << 5) | (a >>> 27)) + f + e + k + w[i]) >>> 0;
+        e = d; d = c; c = ((b << 30) | (b >>> 2)) >>> 0; b = a; a = t;
+      }
+      h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
+    }
+    const out = new Uint8Array(20), o = new DataView(out.buffer);
+    [h0, h1, h2, h3, h4].forEach((h, i) => o.setUint32(i * 4, h));
+    return out;
+  }
+
+  // BSON element types used by the game (others are carried through untouched).
+  const TYPE_NAMES = { 1: 'decimal', 2: 'text', 3: 'group', 4: 'list', 8: 'on/off', 9: 'date', 0x10: 'number', 0x12: 'big number' };
+
+  function parseDoc(u8, start) {
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    const len = dv.getInt32(start, true), end = start + len - 1;
+    if (len < 5 || end >= u8.length || u8[end] !== 0) throw new Error('The save data is damaged (bad document length).');
+    let i = start + 4; const nodes = [];
+    while (i < end) {
+      const t = u8[i++];
+      let j = i; while (u8[j] !== 0) { if (++j >= end) throw new Error('The save data is damaged (bad field name).'); }
+      const kb = u8.slice(i, j), key = td.decode(kb); i = j + 1;
+      const n = { t, key, kb, v: undefined, raw: null, sb: null };
+      switch (t) {
+        case 1: n.v = dv.getFloat64(i, true); i += 8; break;
+        case 2: { const L = dv.getInt32(i, true); n.sb = u8.slice(i + 4, i + 4 + L - 1); n.v = td.decode(n.sb); i += 4 + L; break; }
+        case 3: case 4: { const L = dv.getInt32(i, true); n.v = parseDoc(u8, i); i += L; break; }
+        case 5: { const L = dv.getInt32(i, true); n.raw = u8.slice(i, i + 5 + L); i += 5 + L; break; }
+        case 7: n.raw = u8.slice(i, i + 12); i += 12; break;
+        case 8: n.raw = u8.slice(i, i + 1); n.v = u8[i] !== 0; i += 1; break;
+        case 9: case 0x12: n.v = dv.getBigInt64(i, true); i += 8; break;
+        case 0x10: n.v = dv.getInt32(i, true); i += 4; break;
+        case 0x11: n.raw = u8.slice(i, i + 8); i += 8; break;
+        case 0x13: n.raw = u8.slice(i, i + 16); i += 16; break;
+        case 6: case 0x0A: case 0x7F: case 0xFF: n.raw = new Uint8Array(0); break;
+        default: throw new Error(`The save uses a field type this editor doesn't know (0x${t.toString(16)} in "${key}").`);
+      }
+      if (t !== 3 && t !== 4) n.orig = n.v;
+      nodes.push(n);
+    }
+    return nodes;
+  }
+
+  function serDoc(nodes) {
+    const parts = []; let size = 4;
+    const push = p => { parts.push(p); size += p.length; };
+    const num = (bytes, fn) => { const b = new Uint8Array(bytes); fn(new DataView(b.buffer)); push(b); };
+    for (const n of nodes) {
+      push(Uint8Array.of(n.t)); push(n.kb); push(Uint8Array.of(0));
+      switch (n.t) {
+        case 1: num(8, d => d.setFloat64(0, n.v, true)); break;
+        case 2: num(4, d => d.setInt32(0, n.sb.length + 1, true)); push(n.sb); push(Uint8Array.of(0)); break;
+        case 3: case 4: push(serDoc(n.v)); break;
+        case 8: push(n.v === n.orig ? n.raw : Uint8Array.of(n.v ? 1 : 0)); break;
+        case 9: case 0x12: num(8, d => d.setBigInt64(0, BigInt(n.v), true)); break;
+        case 0x10: num(4, d => d.setInt32(0, n.v, true)); break;
+        default: push(n.raw);
+      }
+    }
+    push(Uint8Array.of(0));
+    const out = new Uint8Array(size); new DataView(out.buffer).setInt32(0, size, true);
+    let o = 4; for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+  }
+
+  function setValue(n, v) { n.v = v; if (n.t === 2) n.sb = te.encode(v); }
+
+  // File layout: [u32 20][SHA-1 of document][u32 document length][BSON document]
+  function parseSave(u8) {
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    if (u8.length < 33 || dv.getUint32(0, true) !== 20) throw new Error("This doesn't look like a Subway Surfers save file.");
+    const hash = u8.slice(4, 24), dl = dv.getUint32(24, true);
+    if (28 + dl !== u8.length || dv.getInt32(28, true) !== dl) throw new Error('The save data is damaged (length mismatch).');
+    const nodes = parseDoc(u8, 28);
+    return { nodes, valid: hex(sha1(u8.subarray(28))) === hex(hash) };
+  }
+
+  function buildSave(nodes) {
+    const doc = serDoc(nodes), out = new Uint8Array(28 + doc.length), dv = new DataView(out.buffer);
+    dv.setUint32(0, 20, true); out.set(sha1(doc), 4); dv.setUint32(24, doc.length, true); out.set(doc, 28);
+    return out;
+  }
+
+  function readBackup(text) {
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error("That file isn't valid JSON. Pick the .json file the export snippet downloaded."); }
+    if (!data || data.format !== 'idbfs-backup' || !Array.isArray(data.entries)) throw new Error("That file isn't a backup made by the export snippet.");
+    const saves = [];
+    for (const e of data.entries) {
+      const c = e && e.v && e.v.$t === 'obj' && e.v.v && e.v.v.contents;
+      if (typeof e.k === 'string' && /\/Save\/cloud$/.test(e.k) && c && c.$t === 'u8') {
+        saves.push({ key: e.k, folder: e.k.replace(/\/Save\/cloud$/, ''), ...parseSave(b64dec(c.v)) });
+      }
+    }
+    if (!saves.length) throw new Error('This backup has no Subway Surfers progress in it (no Save/cloud file). Play one run, then export again.');
+    return { data, saves };
+  }
+
+  // Returns the edited backup as JSON text. Writes the edited save to Save/cloud and Save/cloud_old.
+  function writeBackup(data, save) {
+    const b64 = b64enc(buildSave(save.nodes)), now = Date.now();
+    const out = JSON.parse(JSON.stringify(data));
+    const targets = new Set([save.key, save.folder + '/Save/cloud_old']);
+    for (const e of out.entries) {
+      if (!targets.has(e.k) || !e.v || e.v.$t !== 'obj') continue;
+      e.v.v.contents = { $t: 'u8', v: b64 };
+      const ts = e.v.v.timestamp;
+      if (ts && ts.$t === 'date') ts.v = now; else if (typeof ts === 'number') e.v.v.timestamp = now;
+    }
+    out.exportedAt = new Date(now).toISOString();
+    out.edited = true;
+    return JSON.stringify(out);
+  }
+
+  function find(nodes, path) {
+    let cur = null, list = nodes;
+    for (const k of path) { cur = (list || []).find(n => n.key === k); if (!cur) return null; list = Array.isArray(cur.v) ? cur.v : null; }
+    return cur;
+  }
+
+  function leaves(nodes, prefix = [], out = []) {
+    for (const n of nodes) {
+      const p = prefix.concat(n.key);
+      if (n.t === 3 || n.t === 4) leaves(n.v, p, out); else out.push({ node: n, path: p });
+    }
+    return out;
+  }
+
+  return { b64dec, b64enc, hex, sha1, parseDoc, serDoc, parseSave, buildSave, readBackup, writeBackup, setValue, find, leaves, TYPE_NAMES };
+})();
+if (typeof module !== 'undefined') module.exports = SaveCore;
+
+</script>
+<script>
+(() => {
+  const C = SaveCore, $ = id => document.getElementById(id);
+  const MAX = 2000000000;
+  const QUICK = [
+    { label: 'Coins', path: ['obfuscatedCoins'] },
+    { label: 'Keys', path: ['obfuscatedKeys'] },
+    { label: 'Hoverboards', path: ['powerups', 'hoverboard'] },
+    { label: 'Headstarts', path: ['powerups', 'headstart2000'] },
+    { label: 'Score boosters', path: ['powerups', 'scorebooster'] },
+    { label: 'High score', path: ['highScore'] },
+  ];
+  const fmt = v => typeof v === 'number' ? v.toLocaleString('en-US') : typeof v === 'bigint' ? v.toString() : typeof v === 'boolean' ? (v ? 'on' : 'off') : JSON.stringify(v);
+  let state = null;        // { data, save, sourceLabel }
+  let bindings = new Map(); // node -> [{ sync() }]
+  let downloads = null;
+
+  const inClaude = !!(window.claude && typeof window.claude.use === 'function');
+  const canDownload = () => !!downloads || !inClaude; // outside Claude, a normal browser download works
+  const caps = inClaude ? window.claude.use('downloads') : Promise.resolve(null);
+  caps.then(d => { downloads = d; refreshSave(); }).catch(() => {});
+
+  function labelFor(path) { const q = QUICK.find(q => q.path.join('.') === path.join('.')); return q ? q.label : path.join('.'); }
+  function bind(node, sync) { if (!bindings.has(node)) bindings.set(node, []); bindings.get(node).push(sync); }
+  function changed(node) { return node.v !== node.orig; }
+
+  function setNode(node, v) { C.setValue(node, v); (bindings.get(node) || []).forEach(s => s()); refreshSave(); }
+
+  function parseInt32(str) {
+    const s = String(str).replace(/[\s,._]/g, '');
+    if (!/^-?\d+$/.test(s)) return { error: 'Enter a whole number.' };
+    const n = Number(s);
+    if (n < 0) return { error: 'Use 0 or more.' };
+    if (n > MAX) return { error: 'Use 2,000,000,000 or less.' };
+    return { value: n };
+  }
+
+  function load(text, sourceLabel) {
+    const parsed = C.readBackup(text); // throws with a readable message
+    state = { data: parsed.data, save: parsed.saves[0], sourceLabel };
+    bindings = new Map();
+    $('load-error').hidden = true;
+    $('fallback').hidden = true;
+    $('edit-empty').hidden = true;
+    $('all').hidden = false;
+    renderSource(); renderTiles(); renderRows(); refreshSave();
+    setStatus('');
+  }
+
+  function renderSource() {
+    const { data, save, sourceLabel } = state;
+    const when = data.exportedAt ? new Date(data.exportedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'unknown time';
+    $('src-name').textContent = sourceLabel;
+    $('src-meta').textContent = `Exported ${when}${data.edited ? ' (already edited)' : ''} · folder ${save.folder.split('/').pop()}`;
+    const pill = $('src-check');
+    pill.hidden = false;
+    pill.className = 'pill ' + (save.valid ? 'ok' : 'bad');
+    pill.textContent = save.valid ? 'Checksum OK' : 'Checksum mismatch';
+    pill.title = save.valid ? 'The SHA-1 stored in the file matches its contents.' : 'The file was changed outside the game. The editor will write a correct checksum when you save.';
+  }
+
+  function renderTiles() {
+    const box = $('tiles'); box.textContent = '';
+    for (const q of QUICK) {
+      const node = C.find(state.save.nodes, q.path);
+      if (!node || node.t !== 0x10) continue;
+      const id = 'q-' + q.path.join('-');
+      const tile = document.createElement('div'); tile.className = 'tile';
+      tile.innerHTML = `<label for="${id}"><span></span><span class="tag" hidden>Changed</span></label>
+        <input id="${id}" inputmode="numeric" autocomplete="off"><div class="was"></div><div class="field-error" hidden></div>`;
+      tile.querySelector('label span').textContent = q.label;
+      const input = tile.querySelector('input'), tag = tile.querySelector('.tag'), was = tile.querySelector('.was'), err = tile.querySelector('.field-error');
+      was.textContent = 'Was ' + fmt(node.orig);
+      const sync = () => {
+        if (document.activeElement !== input) input.value = fmt(node.v);
+        tile.classList.toggle('changed', changed(node)); tag.hidden = !changed(node);
+      };
+      input.addEventListener('input', () => {
+        const r = parseInt32(input.value);
+        err.hidden = !r.error; err.textContent = r.error || '';
+        if (!r.error) setNode(node, r.value);
+      });
+      input.addEventListener('blur', () => { err.hidden = true; sync(); });
+      bind(node, sync); sync();
+      box.appendChild(tile);
+    }
+  }
+
+  function renderRows() {
+    const box = $('rows'); box.textContent = '';
+    const leaves = C.leaves(state.save.nodes);
+    $('all-summary').textContent = `All save fields (${leaves.length})`;
+    leaves.forEach(({ node, path }, i) => {
+      const row = document.createElement('div'); row.className = 'row'; row.setAttribute('role', 'listitem');
+      row.dataset.path = path.join('.').toLowerCase();
+      const p = document.createElement('div'); p.className = 'path'; p.textContent = path.join('.');
+      const t = document.createElement('div'); t.className = 'type'; t.textContent = C.TYPE_NAMES[node.t] || 'raw';
+      row.append(p, t);
+      const id = 'f-' + i;
+      let input, sync;
+      if (node.t === 0x10 || node.t === 1) {
+        input = document.createElement('input'); input.type = node.t === 1 ? 'number' : 'text'; input.inputMode = 'numeric';
+        if (node.t === 1) input.step = 'any';
+        input.addEventListener('input', () => {
+          let ok = false, v;
+          if (node.t === 1) { v = Number(input.value); ok = input.value.trim() !== '' && Number.isFinite(v); }
+          else { const s = input.value.replace(/[\s,_]/g, ''); v = Number(s); ok = /^-?\d+$/.test(s) && v >= -2147483648 && v <= 2147483647; }
+          input.classList.toggle('invalid', !ok);
+          if (ok) setNode(node, v);
+        });
+        sync = () => { if (document.activeElement !== input) input.value = String(node.v); };
+        input.addEventListener('blur', () => { input.classList.remove('invalid'); sync(); });
+      } else if (node.t === 0x12) {
+        input = document.createElement('input'); input.type = 'text';
+        input.addEventListener('input', () => { const ok = /^-?\d+$/.test(input.value.trim()); input.classList.toggle('invalid', !ok); if (ok) setNode(node, BigInt(input.value.trim())); });
+        sync = () => { if (document.activeElement !== input) input.value = node.v.toString(); };
+      } else if (node.t === 8) {
+        input = document.createElement('input'); input.type = 'checkbox';
+        input.addEventListener('change', () => setNode(node, input.checked));
+        sync = () => { input.checked = node.v; };
+      } else if (node.t === 2) {
+        input = document.createElement('input'); input.type = 'text';
+        input.addEventListener('input', () => setNode(node, input.value));
+        sync = () => { if (document.activeElement !== input) input.value = node.v; };
+      } else {
+        input = document.createElement('div'); input.className = 'ro';
+        if (node.t === 9) { const ms = Number(node.v); input.textContent = ms <= -62135000000000 ? 'never' : new Date(ms).toLocaleString(); }
+        else input.textContent = '(not editable)';
+        sync = () => {};
+      }
+      input.id = id; if (input.tagName === 'INPUT') input.setAttribute('aria-label', path.join('.'));
+      row.appendChild(input);
+      bind(node, () => { sync(); row.classList.toggle('changed', changed(node)); });
+      sync();
+      box.appendChild(row);
+    });
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const q = $('filter').value.trim().toLowerCase();
+    let shown = 0;
+    for (const row of $('rows').children) { if (!row.dataset.path) continue; const hit = !q || row.dataset.path.includes(q); row.hidden = !hit; shown += hit; }
+    let empty = $('rows').querySelector('.empty-rows');
+    if (!shown) { if (!empty) { empty = document.createElement('div'); empty.className = 'empty-rows'; $('rows').appendChild(empty); } empty.textContent = `No fields match "${q}".`; }
+    else if (empty) empty.remove();
+  }
+
+  function changeList() {
+    return C.leaves(state.save.nodes).filter(l => changed(l.node));
+  }
+
+  function refreshSave() {
+    if (!state) return;
+    const list = changeList(), ul = $('changes');
+    ul.textContent = '';
+    for (const { node, path } of list) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="k"></span><span class="from"></span><span class="arrow">→</span><span class="to"></span>';
+      li.querySelector('.k').textContent = labelFor(path);
+      li.querySelector('.from').textContent = fmt(node.orig);
+      li.querySelector('.to').textContent = fmt(node.v);
+      ul.appendChild(li);
+    }
+    const any = list.length > 0;
+    $('no-changes').hidden = any;
+    $('btn-download').disabled = !any || !canDownload();
+    $('btn-download').title = canDownload() ? '' : 'Downloads aren\'t available in this view. Use "Copy restore snippet" instead.';
+    $('btn-snippet').disabled = !any;
+    $('btn-reset').disabled = !any;
+  }
+
+  function setStatus(msg, kind) { const s = $('status'); s.textContent = msg; s.className = 'status' + (kind ? ' ' + kind : ''); }
+
+  function fileName() { return `subway-surfers-save-edited-${new Date().toISOString().slice(0, 10)}.json`; }
+
+  function snippetFor(json) {
+    return `// Subway Surfers edited save. Paste on https://yell0wsuit.page/ with all game tabs closed.
+(async () => {
+  if (location.hostname !== 'yell0wsuit.page') throw new Error('Open https://yell0wsuit.page/ first, then paste this there.');
+  const data = ${json};
+  const unb64 = s => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+  const dec = v => { if (Array.isArray(v)) return v.map(dec); if (v && typeof v === 'object') { if (v.$t === 'date') return new Date(v.v); if (v.$t === 'ab') return unb64(v.v).buffer; if (v.$t === 'u8') return unb64(v.v); if (v.$t === 'obj') { const o = {}; for (const k in v.v) o[k] = dec(v.v[k]); return o; } } return v; };
+  const db = await new Promise((res, rej) => { const r = indexedDB.open('/idbfs'); r.onupgradeneeded = () => { const st = r.result.createObjectStore('FILE_DATA'); st.createIndex('timestamp', 'timestamp', { unique: false }); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  await new Promise((res, rej) => { const tx = db.transaction('FILE_DATA', 'readwrite'), st = tx.objectStore('FILE_DATA'); for (const e of data.entries) st.put(dec(e.v), dec(e.k)); tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
+  db.close();
+  console.log('✅ Edited save written (' + data.entries.length + ' entries). Open the game now.');
+})().catch(e => console.error('❌', e.message || e));`;
+  }
+
+  $('btn-download').addEventListener('click', async () => {
+    if (!canDownload()) return;
+    try {
+      const text = C.writeBackup(state.data, state.save);
+      if (!downloads) {
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: fileName() });
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        setStatus(`Downloaded ${fileName()}. Restore it with the import snippet (steps below).`, 'ok');
+        return;
+      }
+      const r = await downloads.save({ filename: fileName(), data: text });
+      setStatus(r && r.status === 'delivered' ? 'Sent.' : `Saved ${fileName()}. Restore it with the import snippet (steps below).`, 'ok');
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'declined') setStatus('Download cancelled.', 'bad');
+      else if (code === 'rate_limited') setStatus('A save prompt is already open. Finish that one first.', 'bad');
+      else { setStatus('Downloads aren\'t working here. Use "Copy restore snippet" instead.', 'bad'); }
+    }
+  });
+
+  $('btn-snippet').addEventListener('click', () => {
+    const snippet = snippetFor(C.writeBackup(state.data, state.save));
+    const fb = $('fallback');
+    const showFallback = () => { fb.value = snippet; fb.hidden = false; fb.focus(); fb.select(); setStatus('Copying isn\'t allowed here. The snippet is selected below: copy it with Ctrl+C (⌘C on Mac).', 'bad'); };
+    try {
+      navigator.clipboard.writeText(snippet).then(() => { fb.hidden = true; setStatus('Restore snippet copied. Paste it in the console on yell0wsuit.page.', 'ok'); }, showFallback);
+    } catch { showFallback(); }
+  });
+
+  $('btn-reset').addEventListener('click', () => {
+    for (const { node } of C.leaves(state.save.nodes)) if (changed(node)) setNode(node, node.orig);
+    document.querySelectorAll('.field-error').forEach(e => e.hidden = true);
+    document.querySelectorAll('input.invalid').forEach(e => e.classList.remove('invalid'));
+    setStatus('All changes undone.');
+  });
+
+  $('filter').addEventListener('input', applyFilter);
+
+  // Console snippets for exporting and importing on yell0wsuit.page
+  for (const which of ['export', 'import']) {
+    const code = $('snippet-' + which).textContent.trim(), pre = $('code-' + which), status = $('copy-' + which + '-status');
+    pre.textContent = code;
+    $('copy-' + which).addEventListener('click', () => {
+      const done = (msg, kind) => { status.textContent = msg; status.className = 'copy-status ' + kind; };
+      const selectIt = () => {
+        const range = document.createRange(); range.selectNodeContents(pre);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); pre.focus();
+        done('Copying isn\'t allowed here. The code is selected: press Ctrl+C (⌘C on Mac).', 'bad');
+      };
+      try { navigator.clipboard.writeText(code).then(() => done('Copied. Paste it in the console on yell0wsuit.page.', 'ok'), selectIt); }
+      catch { selectIt(); }
+    });
+  }
+
+  async function openFile(file) {
+    if (!file) return;
+    const readText = f => typeof f.text === 'function' ? f.text() : new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("That file couldn't be read.")); r.readAsText(f); });
+    try { load(await readText(file), file.name); }
+    catch (e) { const el = $('load-error'); el.textContent = e.message || String(e); el.hidden = false; }
+  }
+  $('file').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
+
+  let dragDepth = 0;
+  window.addEventListener('dragenter', e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); dragDepth++; $('drop-hint').hidden = false; } });
+  window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('drop-hint').hidden = true; });
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; $('drop-hint').hidden = true; openFile(e.dataTransfer?.files?.[0]); });
+
+  // Start with the backup shared in chat so the editor opens in a working state.
+  const sample = $('sample-backup').textContent.trim();
+  if (sample) {
+    try { load(sample, 'Your backup (shared in chat)'); $('src-note').textContent = 'This is the backup you shared earlier. To edit your current progress, export again and open the new file. You can also drop it anywhere on this page.'; }
+    catch (e) { const el = $('load-error'); el.textContent = e.message; el.hidden = false; }
+  }
+})();
+</script>
+
+</body>
+</html>
